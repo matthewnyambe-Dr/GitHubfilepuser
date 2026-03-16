@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GitHubPusher</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#080809;--bg2:#0e0e11;--bg3:#0a0a0c;
+    --border:#1e1e26;--border2:#2a2a35;
+    --text:#e2e2e7;--muted:#71717a;--dim:#3a3a42;
+    --accent:#5046e5;--accent2:#4338ca;
+    --green:#34d399;--green-bg:#052e16;
+    --red:#f87171;--red-bg:#2d0a0a;
+    --indigo:#818cf8;--indigo-bg:#1e1b4b;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh}
+  input,select,textarea{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:0.82rem;color:var(--text);outline:none;font-family:'JetBrains Mono',monospace;width:100%;transition:border-color 0.2s;box-sizing:border-box}
+  input::placeholder,textarea::placeholder{color:var(--dim)}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  select option{background:#111113;color:var(--text)}
+  button{font-family:'JetBrains Mono',monospace;cursor:pointer;border:none;transition:all 0.2s}
+  ::-webkit-scrollbar{width:3px;height:3px}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp 0.28s ease forwards}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{display:inline-block;animation:spin 0.7s linear infinite}
+
+  /* Header */
+  .header{border-bottom:1px solid #13131a;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(8,8,9,0.96);backdrop-filter:blur(12px);z-index:100}
+  .logo{font-family:'Bebas Neue',sans-serif;font-size:1.35rem;letter-spacing:0.1em}
+  .logo span{color:#6366f1}
+  .user-badge{display:flex;align-items:center;gap:8px}
+  .user-badge img{width:26px;height:26px;border-radius:50%;border:1px solid var(--border2)}
+
+  /* Layout */
+  .main{max-width:720px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px}
+
+  /* Section */
+  .section{display:flex;flex-direction:column;gap:12px}
+  .sec-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .sec-num{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.62rem;color:#e2e2e7;font-weight:700;flex-shrink:0}
+  .sec-label{font-size:0.62rem;letter-spacing:0.14em;color:#44444e;text-transform:uppercase}
+
+  /* Tag */
+  .tag{font-size:0.62rem;padding:2px 7px;border-radius:99px;font-family:monospace;white-space:nowrap;display:inline-block}
+
+  /* Grid helpers */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid2 .full{grid-column:1/-1}
+  .row{display:flex;gap:8px;align-items:center}
+
+  /* Mode tabs */
+  .mode-tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .mode-tab{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);font-size:0.75rem;font-family:'JetBrains Mono',monospace}
+  .mode-tab.active{border-color:var(--accent);background:var(--indigo-bg);color:var(--indigo)}
+
+  /* Preset chips */
+  .presets{display:flex;gap:6px;flex-wrap:wrap}
+  .preset-chip{padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--dim);font-size:0.7rem;font-family:'JetBrains Mono',monospace}
+  .preset-chip.active{border-color:var(--accent);background:var(--indigo-bg);color:var(--indigo)}
+
+  /* Drop zone */
+  .dropzone{border:2px dashed var(--border2);border-radius:12px;padding:32px 24px;text-align:center;cursor:pointer;transition:all 0.2s}
+  .dropzone.over{border-color:#6366f1;background:rgba(99,102,241,0.04)}
+  .dropzone-icon{font-size:2.2rem;margin-bottom:8px}
+  .dropzone p{font-size:0.85rem;color:#a1a1aa;margin-bottom:4px}
+  .dropzone small{font-size:0.72rem;color:var(--dim)}
+
+  /* File row */
+  .file-list{display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto;padding-right:2px}
+  .file-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;transition:all 0.15s;user-select:none;border:1px solid #1c1c22;background:#0c0c0e}
+  .file-row.selected{background:#13131a;border-color:#3730a3}
+  .file-row:hover:not(.selected){border-color:#28282e}
+  .file-bar{width:2px;height:30px;border-radius:1px;flex-shrink:0}
+  .file-info{flex:1;min-width:0}
+  .file-name{font-size:0.78rem;font-family:'JetBrains Mono',monospace;color:#d4d4d8;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file-path{font-size:0.68rem;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file-tags{display:flex;gap:4px;align-items:center;flex-shrink:0}
+  .checkbox{width:14px;height:14px;border-radius:3px;border:1px solid #3f3f46;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s}
+  .checkbox.checked{background:#6366f1;border-color:#6366f1}
+  .checkbox.checked::after{content:"✓";color:white;font-size:0.6rem;line-height:1}
+
+  /* Push button */
+  .push-btn{width:100%;padding:14px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:0.88rem;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;gap:8px}
+  .push-btn:disabled{opacity:0.5;cursor:not-allowed}
+  .push-btn.done{background:var(--green-bg);color:var(--green)}
+  .push-btn.running{background:#312e81}
+
+  /* Log */
+  .push-log{background:var(--bg3);border:1px solid #13131a;border-radius:8px;padding:10px 14px;max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
+  .log-row{display:flex;align-items:center;gap:8px;font-size:0.7rem;font-family:'JetBrains Mono',monospace}
+  .log-path{color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* Tree preview */
+  .tree-preview{background:var(--bg3);border:1px solid #13131a;border-radius:8px;padding:12px 16px;font-size:0.72rem;line-height:1.8;overflow-x:auto;max-height:160px;overflow-y:auto;white-space:pre;font-family:'JetBrains Mono',monospace}
+  .tree-dir{color:var(--indigo)}
+  .tree-file{color:#a1a1aa}
+
+  /* Mapping panel */
+  .map-panel{background:var(--bg3);border:1px solid #13131a;border-radius:8px;padding:10px 14px}
+  .map-panel-title{font-size:0.65rem;color:var(--dim);margin-bottom:6px;letter-spacing:0.1em}
+  .map-chips{display:flex;flex-wrap:wrap;gap:4px;max-height:70px;overflow-y:auto}
+  .map-chip{font-size:0.63rem;background:#0e0e11;border:1px solid #1a1a22;border-radius:4px;padding:2px 6px;font-family:monospace;color:var(--dim)}
+  .map-key{color:var(--indigo)}
+  .map-val{color:var(--green)}
+
+  /* Rule rows */
+  .rule-row{display:flex;gap:6px;align-items:center;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+  .rule-row:hover{border-color:var(--border2)}
+  .flat-msg{background:var(--bg3);border:1px solid #13131a;border-radius:8px;padding:16px;text-align:center;font-size:0.82rem;color:var(--muted)}
+
+  /* Responsive */
+  @media(max-width:480px){
+    .grid2{grid-template-columns:1fr}
+    .grid2 .full{grid-column:1}
+    .mode-tabs{gap:4px}
+    .mode-tab{padding:6px 10px;font-size:0.7rem}
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="#c9c9d4"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+    <span class="logo">GITHUB<span>PUSHER</span></span>
+    <span class="tag" style="background:#1a1828;color:#818cf8">v4 · Standalone</span>
+  </div>
+  <div id="userBadge" class="user-badge" style="display:none">
+    <img id="userAvatar" src="" alt=""/>
+    <span id="userLogin" style="font-size:0.75rem;color:#71717a"></span>
+    <span class="tag" style="background:#052e16;color:#34d399">● live</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- 1. Auth -->
+  <div class="section fu">
+    <div class="sec-head">
+      <div class="sec-num" style="background:#1a1828">1</div>
+      <span class="sec-label">GitHub Authentication</span>
+    </div>
+    <div class="row">
+      <input type="password" id="tokenInput" placeholder="Personal Access Token  (ghp_...)" onkeydown="if(event.key==='Enter')connect()"/>
+      <button onclick="connect()" id="connectBtn" style="padding:9px 18px;background:#5046e5;color:white;border-radius:8px;font-size:0.82rem;font-weight:600;white-space:nowrap;flex-shrink:0" onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#5046e5'">Connect</button>
+    </div>
+    <div id="authMsg" style="font-size:0.72rem;display:none"></div>
+    <div id="repoSection" style="display:none" class="fu">
+      <div class="grid2" style="margin-top:4px">
+        <select id="repoSelect" class="full" onchange="state.repo=this.value"><option value="">Select repository…</option></select>
+        <input id="branchInput" placeholder="Branch  (main)" value="main" oninput="state.branch=this.value"/>
+        <input id="commitInput" placeholder="Commit message" value="Upload via GitHubPusher" oninput="state.commitMsg=this.value"/>
+      </div>
+    </div>
+    <p style="font-size:0.68rem;color:#3a3a42;line-height:1.7;margin-top:4px">github.com → Settings → Developer settings → Personal access tokens (classic) → needs <span style="color:#818cf8">repo</span> scope · stays in your browser only</p>
+  </div>
+
+  <!-- 2. Structure -->
+  <div class="section fu">
+    <div class="sec-head">
+      <div class="sec-num" style="background:#1a1a10">2</div>
+      <span class="sec-label">File Structure Mode</span>
+    </div>
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tab-tree" onclick="switchMode('tree')">📐 Tree Template</button>
+      <button class="mode-tab" id="tab-rules" onclick="switchMode('rules')">⚙️ Extension Rules</button>
+      <button class="mode-tab" id="tab-flat" onclick="switchMode('flat')">📄 Flat</button>
+    </div>
+
+    <!-- Tree mode -->
+    <div id="modeTree">
+      <div class="presets" style="margin-bottom:10px">
+        <button class="preset-chip active" id="preset-Flask App" onclick="loadPreset('Flask App')">Flask App</button>
+        <button class="preset-chip" id="preset-React App" onclick="loadPreset('React App')">React App</button>
+        <button class="preset-chip" id="preset-Next.js" onclick="loadPreset('Next.js')">Next.js</button>
+        <button class="preset-chip" id="preset-Python Package" onclick="loadPreset('Python Package')">Python Package</button>
+        <button class="preset-chip" id="preset-Custom" onclick="loadPreset('Custom')">✏️ Custom</button>
+      </div>
+      <div id="treePreview" class="tree-preview"></div>
+      <textarea id="treeInput" rows="9" placeholder="Paste your project tree here..." style="margin-top:8px;resize:vertical;line-height:1.8;font-size:0.75rem" oninput="onTreeInput(this.value)"></textarea>
+      <div class="map-panel" style="margin-top:8px">
+        <div class="map-panel-title" id="mapCount">PARSED — 0 files mapped</div>
+        <div class="map-chips" id="mapChips"><span style="font-size:0.7rem;color:#2a2a35">Nothing parsed yet</span></div>
+      </div>
+    </div>
+
+    <!-- Rules mode -->
+    <div id="modeRules" style="display:none">
+      <p style="font-size:0.7rem;color:#3a3a42;margin-bottom:8px">Top → bottom. First match wins. <code style="color:#818cf8">all</code> = catch-all.</p>
+      <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button onclick="addRule()" style="margin-top:8px;font-size:0.75rem;background:#1a1828;color:#818cf8;border:1px solid #2a2840;border-radius:6px;padding:5px 14px">+ Add Rule</button>
+    </div>
+
+    <!-- Flat mode -->
+    <div id="modeFlat" style="display:none">
+      <div class="flat-msg">All files go to <strong style="color:var(--text)">repo root</strong> — no subfolders.</div>
+    </div>
+  </div>
+
+  <!-- 3. Upload -->
+  <div class="section fu">
+    <div class="sec-head">
+      <div class="sec-num" style="background:#0f1a1a">3</div>
+      <span class="sec-label">Upload Files or ZIP Archives</span>
+    </div>
+    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()" ondrop="onDrop(event)" ondragover="onDragOver(event)" ondragleave="onDragLeave()">
+      <div class="dropzone-icon" id="dropIcon">📦</div>
+      <p>Drop <strong style="color:var(--text)">.zip archives</strong> or any files here</p>
+      <small id="dropHint">Python · JS · HTML · CSS · Images · ZIPs auto-extracted</small>
+    </div>
+    <input type="file" id="fileInput" multiple style="display:none" onchange="onFileInput(this.files)"/>
+  </div>
+
+  <!-- 4. Preview -->
+  <div class="section fu" id="previewSection" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="sec-head" style="margin-bottom:0">
+        <div class="sec-num" style="background:#1a0f1a">4</div>
+        <span class="sec-label">Preview &amp; Select</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span id="selCount" style="font-size:0.7rem;color:#52525b"></span>
+        <button onclick="toggleAll()" id="selAllBtn" style="font-size:0.7rem;background:#0e0e11;color:#71717a;border:1px solid var(--border);border-radius:6px;padding:4px 10px">Select all</button>
+        <button onclick="clearFiles()" style="font-size:0.7rem;background:none;color:#3f3f46;border:none;padding:4px 6px">Clear</button>
+      </div>
+    </div>
+    <div class="file-list" id="fileList"></div>
+    <div style="display:flex;gap:12px;margin-top:6px">
+      <span style="font-size:0.65rem;color:#52525b"><span style="color:#818cf8">📐 mapped</span> = matched to tree</span>
+      <span style="font-size:0.65rem;color:#52525b"><span style="color:#d4d478">zip</span> = from archive</span>
+    </div>
+  </div>
+
+  <!-- 5. Push -->
+  <div class="section fu" id="pushSection" style="display:none">
+    <button class="push-btn" id="pushBtn" onclick="pushFiles()">↑ Push files</button>
+    <div class="push-log" id="pushLog" style="display:none"></div>
+    <button id="clearBtn" onclick="clearAll()" style="display:none;width:100%;padding:7px;background:none;color:#3a3a42;font-size:0.72rem;transition:color 0.2s" onmouseover="this.style.color='#71717a'" onmouseout="this.style.color='#3a3a42'">Clear and push more files</button>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  token: "", user: null, repos: [], repo: "", branch: "main", commitMsg: "Upload via GitHubPusher",
+  mode: "tree", treeMap: {}, rules: [
+    {id:1,type:"ext",value:"html",folder:"templates"},
+    {id:2,type:"ext",value:"css",folder:"static"},
+    {id:3,type:"all",value:"",folder:""}
+  ],
+  files: [], selected: new Set(), pushing: false, done: false
+};
+
+// ── Presets ────────────────────────────────────────────────────────────────
+const PRESETS = {
+  "Flask App": `my-app/\n├── app.py\n├── routes.py\n├── payments.py\n├── mail_service.py\n├── database.py\n├── templates/\n│   ├── index.html\n│   ├── checkout.html\n│   ├── success.html\n│   ├── cancel.html\n│   └── error.html\n├── static/\n│   ├── style.css\n│   └── main.js\n├── Procfile\n├── requirements.txt\n├── .env.example\n└── .gitignore`,
+  "React App": `my-app/\n├── src/\n│   ├── App.jsx\n│   ├── main.jsx\n│   └── index.css\n├── public/\n│   └── index.html\n├── package.json\n├── vite.config.js\n└── .gitignore`,
+  "Next.js": `my-app/\n├── app/\n│   ├── layout.tsx\n│   ├── page.tsx\n│   └── globals.css\n├── components/\n├── lib/\n│   └── utils.ts\n├── public/\n├── package.json\n├── next.config.js\n└── .gitignore`,
+  "Python Package": `my-package/\n├── src/\n│   └── mypackage/\n│       ├── __init__.py\n│       └── core.py\n├── tests/\n│   └── test_core.py\n├── setup.py\n├── README.md\n└── .gitignore`,
+};
+
+// ── Tree parser ────────────────────────────────────────────────────────────
+function parseTree(text) {
+  const map = {};
+  const lines = text.split("\n").filter(l => l.trim());
+  if (!lines.length) return map;
+  const root = lines[0].trim().replace(/\/$/, "");
+  const pathStack = [root], depthStack = [0];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    const stripped = line.replace(/^[│├└─\s]*/, "").trim();
+    if (!stripped) continue;
+    const indent = line.search(/[^\s│├└─]/);
+    const name = stripped.replace(/\/$/, "");
+    const isDir = stripped.endsWith("/");
+    while (depthStack.length > 1 && depthStack[depthStack.length - 1] >= indent) {
+      depthStack.pop(); pathStack.pop();
+    }
+    const full = [...pathStack, name].join("/");
+    if (isDir) { pathStack.push(name); depthStack.push(indent); }
+    else { map[name] = full; }
+  }
+  return map;
+}
+
+function matchToTree(name, map) {
+  if (map[name]) return map[name];
+  for (const v of Object.values(map)) { if (v.endsWith("/" + name)) return v; }
+  return null;
+}
+
+// ── File helpers ───────────────────────────────────────────────────────────
+const TEXTS = new Set(["py","js","ts","jsx","tsx","html","css","scss","md","txt","json","yml","yaml","xml","sh","bash","env","toml","ini","cfg","rs","go","java","c","cpp","h","cs","php","rb","kt","sql","tf","gitignore","dockerfile","csv","log","example","procfile","lock"]);
+const getExt = n => (n.split(".").pop() || "").toLowerCase();
+const isBin = n => !TEXTS.has(getExt(n));
+const fmtSz = b => b<1024?`${b}B`:b<1048576?`${(b/1024).toFixed(1)}KB`:`${(b/1048576).toFixed(1)}MB`;
+const COLORS = {py:"#3572A5",js:"#f1e05a",ts:"#2b7489",jsx:"#61dafb",tsx:"#2b7489",html:"#e34c26",css:"#563d7c",md:"#083fa1",json:"#292929",sh:"#89e051",yml:"#cb171e",yaml:"#cb171e",png:"#ff6b6b",jpg:"#ff6b6b",jpeg:"#ff6b6b",gif:"#ff9f43",svg:"#ffbe76",zip:"#fdcb6e"};
+const ICONS = {py:"🐍",js:"⚡",ts:"🔷",jsx:"⚛️",tsx:"⚛️",html:"🌐",css:"🎨",md:"📝",json:"📋",sh:"💻",yml:"⚙️",zip:"📦",png:"🖼️",jpg:"🖼️",jpeg:"🖼️",gif:"🖼️",webp:"🖼️",svg:"🎨",env:"🔐",example:"🔐",gitignore:"🚫",procfile:"⚙️"};
+const getIcon = n => ICONS[getExt(n)] || "📄";
+const getColor = n => COLORS[getExt(n)] || "#6b7280";
+
+function b64U8(u8) { let s=""; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s); }
+function b64Text(str) { return btoa(unescape(encodeURIComponent(str))); }
+
+function resolveFilePath(file) {
+  const { mode, treeMap, rules } = state;
+  if (mode === "tree") {
+    const r = matchToTree(file.name, treeMap);
+    return r || file.zipPath || file.name;
+  }
+  if (mode === "rules") {
+    for (const rule of rules) {
+      const e = getExt(file.name);
+      const hit =
+        (rule.type==="ext" && rule.value && e===rule.value.replace(/^\./,"").toLowerCase()) ||
+        (rule.type==="name" && rule.value && file.name.toLowerCase().includes(rule.value.toLowerCase())) ||
+        (rule.type==="path" && rule.value && (file.zipPath||"").toLowerCase().includes(rule.value.toLowerCase())) ||
+        (rule.type==="all");
+      if (hit) return rule.folder ? `${rule.folder.replace(/\/+$/,"")}/${file.name}` : file.name;
